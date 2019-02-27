@@ -1,0 +1,14 @@
+---
+#Project Specific references
+#directory containing the raw, inflated fastq files
+read_directory: "raw_seqs_test2"
+
+#Portion of file name after your identifying sample name
+raw_file_forward_extension: "_R1_001.fastq.gz"
+raw_file_reverse_extension: "_R2_001.fastq.gz"
+
+#Typically static references
+#OTU label name for vsearch dereplicate_vsearch
+derep_otu_name: "Derep_OTU"
+
+#Chimera database for vsearch

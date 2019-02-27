@@ -1,0 +1,113 @@
+import glob
+import os
+import sys
+
+#indentify configure file you'd like to use with this snakefile
+configfile: "config.yaml"
+
+#This should be the directory that contains your raw reads (expected to be .gz)
+INPUT_DIR = config["read_directory"]
+
+#Grab just the useful sample name and insert them into a list
+postfix_length = len(config["raw_file_forward_extension"])
+sample_names = {f[:-postfix_length]
+    for f in os.listdir(config["read_directory"])
+    if f.endswith(config["raw_file_forward_extension"])
+    }
+
+#FORWARD_READ = '{sample}' + config["raw_file_forward_extension"]
+#REVERSE_READ = '{sample}' + config["raw_file_reverse_extension"]
+
+rule all:
+    input:
+        #Step5 dereplicate sequences
+        "step5_derep_seqs.fasta"
+
+        #Step4 concatentate sequences
+        #"step4_concat_seqs.fasta"
+
+        #Step3 Mothur trim primers
+        #expand("Step3_adapttrim/{sample}.trim.fasta", sample = sample_names)
+
+        #Step2 vsearch quality control & assurance
+        #expand("Step2_vsearch_qaqc/{sample}.assembled.qaqc.fasta",
+        #sample = sample_names)
+
+        #Step1 merging reads with pair
+        #expand("pear_merged/{sample}.assembled.fastq", sample = sample_names)
+
+rule merge_pairs:
+    input:
+        r1 = os.path.join(INPUT_DIR, "{sample}_R1_001.fastq.gz"),
+        r2 = os.path.join(INPUT_DIR, "{sample}_R2_001.fastq.gz")
+    params:
+        sample_base = "{sample}"
+    output:
+        assembled = "Step1_pear_merged/{sample}.assembled.fastq",
+        discarded = "Step1_pear_merged/{sample}.discarded.fastq",
+        unass_r1 = "Step1_pear_merged/{sample}.unassembled.forward.fastq",
+        uass_r2 = "Step1_pear_merged/{sample}.unassembled.reverse.fastq"
+    shell:
+        """
+        pear -f {input.r1} \
+        -r {input.r2} -o Step1_pear_merged/{params.sample_base}
+        """
+
+rule vsearch_qaqc:
+    input:
+        seqs = "Step1_pear_merged/{sample}.assembled.fastq"
+    output:
+        "Step2_vsearch_qaqc/{sample}.assembled.qaqc.fasta"
+    params:
+        eemax = 1,
+        minlen = 290,
+        maxlen = 300,
+        relabel = "{sample}_"
+    shell:
+        """
+        vsearch --fastq_filter {input.seqs} --fastq_maxee {params.eemax} \
+        --fastq_minlen {params.minlen} --fastq_maxlen {params.maxlen} \
+        --relabel {params.relabel} --fastaout {output}
+        """
+
+rule trim_primers:
+    input:
+        seqs = "Step2_vsearch_qaqc/{sample}.assembled.qaqc.fasta"
+    output:
+        "Step3_adapttrim/{sample}.trim.fasta"
+    params:
+        oligo = "/data/home/woverholt3/Projects/Deep-C/DeepC_Seq_analysis/SGoM_NGoM_Dec2015_raw_seqs/515F_806R_oligos_for_mothur.txt",
+        sample = "{sample}"
+    shell:
+        """
+        mothur "#trim.seqs(fasta={input.seqs}, oligos={params.oligo})";
+        mv Step2_vsearch_qaqc/{params.sample}.assembled.qaqc.trim.fasta Step3_adapttrim/{params.sample}.trim.fasta;
+        mv Step2_vsearch_qaqc/{params.sample}.assembled.qaqc.scrap.fasta Step3_adapttrim/{params.sample}.scrap.fasta;
+        """
+#This rule is currently inflated the sample_names glob
+#I don't really like how this works, but I'll try and revisit later
+rule concat_seqs:
+    input:
+        expand("Step3_adapttrim/{sample}.trim.fasta", sample = sample_names)
+    output:
+        "step4_concat_seqs.fasta"
+    shell:
+        """
+        cat "Step3_adapttrim/*.trim.fasta" >> {output}
+        """
+
+
+rule dereplicate_vsearch:
+    input:
+        fasta = "step4_concat_seqs.fasta",
+    output:
+        fasta = "step5_derep_seqs.fasta",
+        uc = "step5_derep_map.uc"
+    params:
+        relabel = "Derep_OTU"
+    shell:
+        """
+        vsearch --derep_fulllength {input.fasta} --sizeout \
+        --fasta_width 0 --relabel {relabel} --relabel_keep --output {output.fasta} \
+        --uc {output.uc}
+        """
