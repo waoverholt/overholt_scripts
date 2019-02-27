@@ -6,16 +6,20 @@ Written by Will Overholt
 Purpose: Run a collection of single hmm models against a directory of predicted protein sequences from genome bins
 & generate a consolidated table of hits.
 
-The collection of hmm models can have an optional tab delimited file that gives a user specified cut-off value.
-Otherwise a default evalue < 1e-5 is used.
+The hmms I was working with when I wrote this script were the collection prepared by Karthik Anantharaman
+and available here: https://github.com/banfieldlab/metabolic-hmms
 
-This script expects the checkM output, where each bin contains a file named "genes.faa"
+The collection of hmm models can have an optional tab delimited file that gives a user specified cut-off value.
+Otherwise a default e-value < 1e-5 is used.
+
+This script expects the checkM style output, where each bin contains a file named "genes.faa"
 It can easily be modified to work on any faa file, or a different extension if they are still
 amino acid sequences.
 
 usage:
 python search_bins_for_hmms.py -i <input directory> -m <hmm model or directory of hmm models>
                                -c <optional: tsv file of bitscore cutoffs for each hmm> -o <optional: output txt file>
+                               --sum_outfile
 """
 
 ####################
@@ -24,9 +28,8 @@ import sys
 import os
 import subprocess
 import tempfile
-import argparse
 import pandas as pd
-
+import argparse
 ####################
 #Argument Parser
 parser = argparse.ArgumentParser()
@@ -39,8 +42,12 @@ parser.add_argument('-c', '--cut_off_values', required=False,
 parser.add_argument('-o', '--output_file', required=False,
                      help='a tab delimited file of the results, sorted by Bin name and hmm_model; if omitted unsorted'
                           'values will be printed to the terminal (can be sorted by piping to sort -k1,1 -k2,2')
+parser.add_argument('--sum_outfile', help="a tab delimited file that summarizes the results. Generates a wide format"
+                    "data table of Bin x hmm_mods, with the number of hits for each model as the cell value. I use this"
+                    "to add information to a summary sheet for each bin (eg. checkM values, gtdbtk tax, interesting"
+                    "features. This is just a boolean flag, it will use your outfile basename", required=False,
+                    action='store_true')
 args = parser.parse_args()
-
 #####################
 #Functions
 def list_hmm_mods(arg):
@@ -90,6 +97,7 @@ def find_hmm_hits(tmp_file):
 
 ######################
 #Main Script
+
 if __name__ == '__main__':
 
     df = pd.DataFrame(columns=["Bin", "GeneSeqID", "hmm_mod", "Evalue", "bitScore"])
@@ -130,3 +138,8 @@ if __name__ == '__main__':
     if args.output_file:
         df = df.sort_values(by=['Bin', 'hmm_mod'])
         df.to_csv(args.output_file, sep="\t", index=False)
+        if args.sum_outfile:
+            wide_df = df.pivot_table(index='Bin', columns='hmm_mod', aggfunc='size', fill_value=0)
+            sum_fh = os.path.join(os.path.dirname(args.output_file),
+                      os.path.splitext(os.path.basename(args.output_file))[0] + "_summary.txt")
+            wide_df.to_csv(sum_fh, sep="\t", index=False)
