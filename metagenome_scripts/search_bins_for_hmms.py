@@ -142,4 +142,4 @@ if __name__ == '__main__':
             wide_df = df.pivot_table(index='Bin', columns='hmm_mod', aggfunc='size', fill_value=0)
             sum_fh = os.path.join(os.path.dirname(args.output_file),
                       os.path.splitext(os.path.basename(args.output_file))[0] + "_summary.txt")
-            wide_df.to_csv(sum_fh, sep="\t", index=False)
+            wide_df.to_csv(sum_fh, sep="\t")

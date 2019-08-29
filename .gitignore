@@ -1,3 +1,4 @@
+snakemake_16S_pipeline/
 eric_scripts/
 .mash2dist.py.swp
 add_barcodes_to_illumina_seqs.py~
