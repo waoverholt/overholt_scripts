@@ -6,7 +6,8 @@ import subprocess as sub
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input_file", help="fasta formatted file containing the contigs", required=True)
-parser.add_argument("-r", "--raw_reads", help="raw reads used to generate the assembly, this will be used to calculate percent assembled", required=False)
+parser.add_argument("-f", "--forward_reads", help="forward reads used to generate the assembly, this will be used to calculate percent assembled", required=False)
+parser.add_argument("-r", "--reverse_reads", help="reverse reads used to generate the assembly, this will be used to calculate percent assembled", required=False)
 parser.add_argument("-p", "--percent_aligned", help="Calculate the number of reads that map back to the alignment. This uses bowtie2 and can take some time. It gives an approximation of how representative the contigs are of the raw reads. Of course, it requires that bowtie2 is installed and in your path.", required=False, action='store_true')
 
 args = parser.parse_args()
@@ -100,12 +101,12 @@ def run_bowtie2_scaffold(contig):
     outfile = "{0}.bowtie".format(outfile)
     sub.call(["bowtie2-build", args.input_file, outfile], stdout=sub.PIPE, stderr=sub.PIPE)
 
-def run_bowtie2(contig, reads):
+def run_bowtie2(contig, foward, reverse):
     print "Mapping raw reads using Bowtie2, this may take awhile..."
     outfile = os.path.abspath(contig)
     index_file = "{0}.bowtie".format(outfile)
     outfile = "{0}.sam".format(outfile)
-    output = sub.check_output(["bowtie2", "-x", index_file, "-f", reads, "-S", outfile], stderr=sub.STDOUT)
+    output = sub.check_output(["bowtie2", "-x", index_file, "-1", foward, "-2", reverse, "-S", outfile], stderr=sub.STDOUT)
     percent_aligned = 0
     for line in output.split(os.linesep):
         if re.search("overall alignment", line):
@@ -127,7 +128,7 @@ num_seqs = num_seqs(args.input_file)
 seq_lens = calc_N50(args.input_file)
 if args.percent_aligned:
     run_bowtie2_scaffold(args.input_file)
-    percent_assem = run_bowtie2(args.input_file, args.raw_reads)
+    percent_assem = run_bowtie2(args.input_file, args.foward_reads, args.reverse_reads)
     clean_up()
 
 
