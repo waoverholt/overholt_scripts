@@ -31,11 +31,7 @@ parser.add_argument("-o", "--output", help="output file name to store results")
 parser.add_argument("-c", "--counts", help="species counts table that is tab separated")
 parser.add_argument("-s", "--otu_string_format", help = "text format for the otuids, include all characters up to the number")
 
-args = parser.parse_args(["--input", "/home/waoverholt/Data/Work/AquaDiva/Omnitrophica_Eugenio/16S/16S_with_outgroup/RAxML_portableTree.EPA.jplace",
-    "--output", "/home/waoverholt/Data/Work/AquaDiva/Omnitrophica_Eugenio/16S/16S_with_outgroup/itol_test.out",
-    "--counts", "/home/waoverholt/Data/Work/AquaDiva/Omnitrophica_Eugenio/16S/Omnitrophica_seqs_table_asv-prop-sums.txt",
-    "--otu_string_format", "ASV_"])
-#args = parser.parse_args()
+args = parser.parse_args()
 
 otu_match = re.compile(re.escape(args.otu_string_format) + r'[0-9]+')
 
