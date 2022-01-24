@@ -1,6 +1,7 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
+# %%
 import json
-import os,sys, re
+import os,sys,re
 import argparse
 import pandas as pd
 import random
@@ -17,14 +18,26 @@ The end goal is to use the iToL (or ggtree) to annotate the reference tree with 
 It takes as input (-i) a .jplace file, a counts file, and output (-o) a file name.
 
 I've only tested this on one dataset. The OTUIDs are called denovo[0-9]+ and the BIOM table has the same row names. I use pandas to split the OTU table based on sequences that are associated with the same node.
+
+Updated to be more flexible for the OTUIDs
+User asked to provide the text string format of the otuIDs:
+e.g. "ASV_1, "ASV_2", "ASV_3,...ASV_999" -> "ASV_"
+"denovo0, denovo1, ..., denovon" -> "denovo"
 """
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", help=".jplace file from raxml-epa", required=True)
 parser.add_argument("-o", "--output", help="output file name to store results")
 parser.add_argument("-c", "--counts", help="species counts table that is tab separated")
+parser.add_argument("-s", "--otu_string_format", help = "text format for the otuids, include all characters up to the number")
 
-args = parser.parse_args()
+args = parser.parse_args(["--input", "/home/waoverholt/Data/Work/AquaDiva/Omnitrophica_Eugenio/16S/16S_with_outgroup/RAxML_portableTree.EPA.jplace",
+    "--output", "/home/waoverholt/Data/Work/AquaDiva/Omnitrophica_Eugenio/16S/16S_with_outgroup/itol_test.out",
+    "--counts", "/home/waoverholt/Data/Work/AquaDiva/Omnitrophica_Eugenio/16S/Omnitrophica_seqs_table_asv-prop-sums.txt",
+    "--otu_string_format", "ASV_"])
+#args = parser.parse_args()
+
+otu_match = re.compile(re.escape(args.otu_string_format) + r'[0-9]+')
 
 #Delete output file if it already exists
 try:
@@ -35,27 +48,28 @@ except OSError:
 with open(args.input) as jplace:
     json_obj = json.load(jplace)
 
+## This is stepping through the reference tree and pulling out the internal nodes
 Tree = json_obj['tree']
 Tree = re.split(r"\(|\)|,", Tree)
 node_names = []
 for char in Tree:
     if char:
         m = re.match("(.*):[0-9]+\.[0-9]+({[0-9]+})", char)
-        if m > 1:
-            node_names.append([m.group(2), m.group(1)])
-        elif m == 1:
-            node_names.append([m.group(1)])
+        if m:
+            if len(m.groups()) > 1:
+                node_names.append([m.group(2), m.group(1)])
+            elif len(m.groups()) == 1:
+                node_names.append([m.group(1)])
         else:
             next
-    
     
 node_dict = defaultdict(list)
 for item in json_obj["placements"]:
     node_key = item['p'][0][0]
-    #print node_key
-    otu_value = item['n']
-    m = re.search('.*(denovo[0-9]+).*', str(otu_value))
-    node_dict[node_key].append(m.group(1))
+    otu_value = item['n'][0]
+    m = re.search(otu_match, otu_value)
+    node_dict[node_key].append(m.group())
+
 
 #Subsetting the OTU table and summarizing node results
 otu_df = pd.read_table(args.counts, sep="\t", skiprows=(0), header=(1), index_col=(0))
@@ -63,11 +77,11 @@ otu_df = pd.read_table(args.counts, sep="\t", skiprows=(0), header=(1), index_co
 new_df = pd.DataFrame(index = node_dict.keys(), columns = list(otu_df))
 #print otu_df[otu_df.index.isin(['denovo0', 'denovo11'])]
 
-for node, otu in node_dict.iteritems():
+for node, otu in node_dict.items():
     line = "{0}\t{1}\n".format(node, otu)
-    #print otu
-    #print otu_df[otu_df.index.isin(otu)]
-    #print otu_df.sum()
+    #print(otu)
+    #print(otu_df[otu_df.index.isin(otu)])
+    #print(otu_df.sum())
     new_df.loc[node] = otu_df[otu_df.index.isin(otu)].sum()
 
 new_index_names = []
@@ -103,3 +117,5 @@ f.write("FIELD_COLORS\n")
 f.write("DATA\n")
 new_df.to_csv(f, sep="\t", header = False)
 f.close()
+
+# %%
