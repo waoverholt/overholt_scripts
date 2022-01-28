@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-# %%
+
 import json
 import os,sys,re
 import argparse
@@ -15,9 +15,7 @@ The idea is to make a good tree with long sequences, then map illumina OTUs onto
 
 The end goal is to use the iToL (or ggtree) to annotate the reference tree with relative abundance of reads associated with the nodes.
 
-It takes as input (-i) a .jplace file, a counts file, and output (-o) a file name.
-
-I've only tested this on one dataset. The OTUIDs are called denovo[0-9]+ and the BIOM table has the same row names. I use pandas to split the OTU table based on sequences that are associated with the same node.
+It takes as input (-i) a .jplace file, a counts file (-c), the format of the OTU_IDS (-s), and output (-o) a file name.
 
 Updated to be more flexible for the OTUIDs
 User asked to provide the text string format of the otuIDs:
@@ -31,7 +29,13 @@ parser.add_argument("-o", "--output", help="output file name to store results")
 parser.add_argument("-c", "--counts", help="species counts table that is tab separated")
 parser.add_argument("-s", "--otu_string_format", help = "text format for the otuids, include all characters up to the number")
 
-args = parser.parse_args()
+#args = parser.parse_args()
+
+args = parser.parse_args(
+    ["--input", "/home/waoverholt/Data/Work/AquaDiva/Omnitrophica_Eugenio/16S/Lijuan_based_ASVs/RAxML_portableTree.EPA.jplace", 
+    "--output","/home/waoverholt/Data/Work/AquaDiva/Omnitrophica_Eugenio/16S/Lijuan_based_ASVs/raxml_asv_data.txt", 
+    "--counts","/home/waoverholt/Data/Work/AquaDiva/Omnitrophica_Eugenio/16S/Lijuan_based_ASVs/Syrie_Omni_ASV_asv_rel_abund.txt", 
+    "--otu_string_format","ASV_"])
 
 otu_match = re.compile(re.escape(args.otu_string_format) + r'[0-9]+')
 
@@ -68,8 +72,9 @@ for item in json_obj["placements"]:
 
 
 #Subsetting the OTU table and summarizing node results
-otu_df = pd.read_table(args.counts, sep="\t", skiprows=(0), header=(1), index_col=(0))
+otu_df = pd.read_table(args.counts, sep="\t", skiprows=(0), header=(0), index_col=(0))
 
+#initialize new dataframe with the internal node IDs & colnames as the first row of the counts file (sample names)
 new_df = pd.DataFrame(index = node_dict.keys(), columns = list(otu_df))
 #print otu_df[otu_df.index.isin(['denovo0', 'denovo11'])]
 
@@ -91,10 +96,13 @@ for index in new_df.index:
             else:
                 new_index_names.append("{{{0}}}".format(index))
 
-
 new_df.index = new_index_names
 new_df = new_df.assign(PiePlace=0.5)
-new_df = new_df.assign(RowSum=new_df.sum(axis=1))
+#calculate the sum of each node based on the ASV relative abundances (abundances in the count file)
+#drop the location of the PieChart, set at 0.5 so it is in the middle of the branch in iToL
+new_df = new_df.assign(RowSum=new_df.drop('PiePlace', axis=1).sum(axis=1))
+
+#new_df = new_df.assign(RowSum=new_df.sum(axis=1))
 col_list = new_df.columns.tolist()
 col_list = col_list[-2:] + col_list[:-2]
 new_df = new_df[col_list]
@@ -113,5 +121,3 @@ f.write("FIELD_COLORS\n")
 f.write("DATA\n")
 new_df.to_csv(f, sep="\t", header = False)
 f.close()
-
-# %%
