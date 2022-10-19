@@ -32,6 +32,7 @@ def get_args() -> argparse.ArgumentParser:
     return parser
 
 def check_prog(prog_name: str) -> None:
+    """ check if program is availabe from the PATH """
     if shutil.which(prog_name) is None:
         print(f"{prog_name} is not in the $PATH and is required for this program")
         sys.exit(1)
@@ -67,6 +68,7 @@ def check_inputs(
     return inputs
 
 def run_cmd_shell(command_str: str):
+    """ Run a command through subprocess """
     try:
         output = subprocess.check_output(command_str, encoding='utf-8', shell=True, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError as e:
@@ -79,7 +81,7 @@ def run_cmd_shell(command_str: str):
     return output
 
 def parse_size(size):
-    """Calculate the size in bytes given human readable input"""
+    """ Calculate the size in bytes given human readable input """
     units = {
         "B": 1, 
         "KB": 2**10,
@@ -94,7 +96,7 @@ def parse_size(size):
     return int(float(number)*units[unit])
 
 def gen_partitions(inputs):
-    """Run fpart to generate the partition files"""
+    """ Run fpart to generate the partition files """
     full_in_path = os.path.abspath(inputs["input"])
     full_out_path = os.path.abspath(inputs["output"])
     folder_name = os.path.basename(full_in_path)
@@ -103,14 +105,13 @@ def gen_partitions(inputs):
     output = run_cmd_shell(cmd)
 
 def run_tar(inputs):
-    """
-    ls | grep -E "*.[0-9]+" | xargs -P 8 tar -zcf {}.tar.gz -T {}
-    """
+    """ Use fpart lists to create tar.gz archives, parallelized with xargs """
     cmd = f"find {inputs['output']} -regex '.*/.*[0-9]+' | xargs -P {inputs['threads']} -I file tar -zcf file.tar.gz -T file"
     proc = run_cmd_shell(cmd)
     #proc = subprocess.check_call(cmd, shell=True, encoding="utf-8", stderr=subprocess.PIPE)
 
 def calc_tar_file_sizes(inputs:dict) -> list:
+    """ calculate tar.gz file sizes """
     file_sizes = [["file_name", "size_bytes", "size"]]
     abbrevs = (
         (1<<50, 'PB'),
@@ -133,6 +134,7 @@ def calc_tar_file_sizes(inputs:dict) -> list:
     return file_sizes
 
 def print_align(array:list, summary_file:str) -> None:
+    """ write tar.gz files and their sizes to file """
     max_widths = []
     with open(summary_file, "w") as outfp:
         for column in zip(*array):
