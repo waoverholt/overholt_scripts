@@ -8,6 +8,8 @@ import argparse
 import shutil
 import subprocess
 
+from zmq import MAX_SOCKETS
+
 """Split a large directory tree into sub tar.gz files
 
 This script is intended for splitting up a large minION output dir
@@ -70,7 +72,7 @@ def run_cmd_shell(command_str: str):
         print(f"Exit code={e.returncode}")
         print(f"Error message={e.output}")
         sys.exit(1)
-    print(f"Command ran successfully")
+    print(f"Command: {command_str}\nran successfully")
     return output
 
 def parse_size(size):
@@ -101,24 +103,41 @@ def run_tar(inputs):
     """
     ls | grep -E "*.[0-9]+" | xargs -P 8 tar -zcf {}.tar.gz -T {}
     """
-
-    """
-    p1 = subprocess.Popen(["find", inputs["output"], "-regex", "'.*/.*[0-9]+'"], stdout=subprocess.PIPE)
-    p2 = subprocess.Popen(
-        ["xargs", 
-        "-P", inputs['threads'],
-        "-n", "1", 
-        "-I", "file", 
-        "tar", "-zcf", 
-        "file.tar.gz", 
-        "-T", "file"], 
-        stdin=p1.stdout, stdout=subprocess.PIPE, shell=True)
-    p1.stdout.close()
-    output,err = p2.communicate()
-    print(output, err)
-    """
     cmd = f"find {inputs['output']} -regex '.*/.*[0-9]+' | xargs -P {inputs['threads']} -I file tar -zcf file.tar.gz -T file"
-    output = subprocess.Popen(cmd, shell=True, encoding="utf-8", stderr=subprocess.PIPE)
+    proc = run_cmd_shell(cmd)
+    #proc = subprocess.check_call(cmd, shell=True, encoding="utf-8", stderr=subprocess.PIPE)
+
+def calc_tar_file_sizes(inputs:dict) -> list:
+    file_sizes = [["file_name", "size_bytes", "size"]]
+    abbrevs = (
+        (1<<50, 'PB'),
+        (1<<40, 'TB'),
+        (1<<30, 'GB'),
+        (1<<20, 'MB'),
+        (1<<10, 'kB'),
+        (1, 'bytes')
+    )
+    for file in os.listdir(inputs["output"]):
+        if file[-2:] == "gz":
+            bytes = os.path.getsize(os.path.join(inputs["output"],file))
+            if bytes == 1:
+                file_sizes.append([file, bytes, f"1 byte"])
+            for factor, suffix in abbrevs:
+                if bytes >= factor:
+                    break
+            file_sizes.append([file, bytes, f"{round(bytes / factor, 1)} {suffix}"])
+            #file_sizes[file] = f"{bytes}\t{round(bytes / factor, 1)} {suffix}"
+    return file_sizes
+
+def print_align(array:list, summary_file:str) -> None:
+    max_widths = []
+    with open(summary_file, "w") as outfp:
+        for column in zip(*array):
+            max_widths.append(max(map(len, map(str, column))))
+        for row in array:
+            for width, cell in zip(max_widths, row):
+                print(str(cell).ljust(width+5), end="", file=outfp)
+            print(file=outfp)
 
 def main():
     """ main code block """
@@ -133,6 +152,8 @@ def main():
     inputs = check_inputs(args, inputs)
     gen_partitions(inputs)
     run_tar(inputs)
+    file_sizes = calc_tar_file_sizes(inputs)
+    print_align(file_sizes, os.path.join(inputs["output"], "sizes_of_tar_files.txt"))
 
 if __name__ == "__main__":
     main()
