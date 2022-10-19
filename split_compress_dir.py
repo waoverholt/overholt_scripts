@@ -31,6 +31,11 @@ def get_args() -> argparse.ArgumentParser:
 
     return parser
 
+def check_prog(prog_name: str) -> None:
+    if shutil.which(prog_name) is None:
+        print(f"{prog_name} is not in the $PATH and is required for this program")
+        sys.exit(1)
+
 def check_inputs(
     args: argparse.ArgumentParser,
     inputs: dict
@@ -139,6 +144,7 @@ def print_align(array:list, summary_file:str) -> None:
 
 def main():
     """ main code block """
+    check_prog("fpart")
     inputs = {
         'input' : None,
         'output' : "out",
