@@ -8,8 +8,6 @@ import argparse
 import shutil
 import subprocess
 
-from zmq import MAX_SOCKETS
-
 """Split a large directory tree into sub tar.gz files
 
 This script is intended for splitting up a large minION output dir
